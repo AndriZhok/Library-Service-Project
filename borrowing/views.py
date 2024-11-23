@@ -33,6 +33,12 @@ class BorrowingViewSet(viewsets.ModelViewSet):
     queryset = Borrowing.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
 
+    def send_telegram_message(self, message):
+        data = {"chat_id": CHAT_ID, "text": message}
+        response = requests.post(TELEGRAM_API_URL, data=data)
+        if response.status_code != 200:
+            raise Exception(f"Не вдалося відправити повідомлення: {response.text}")
+
     def get_serializer_class(self):
         if self.action == "create":
             return BorrowingCreateSerializer
@@ -66,7 +72,7 @@ class BorrowingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         borrowing = serializer.save(user=self.request.user)
         self.send_telegram_message(
-            f"Ви взяли книгу '{borrowing.book.title}'. Очікувана дата повернення: {borrowing.expected_return_date}."
+            f"Вітаємо!!! Ви взяли книгу '{borrowing.book.title}'. Очікувана дата повернення: {borrowing.expected_return_date}."
         )
 
     @action(detail=True, methods=["post"])
@@ -82,23 +88,3 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=["get"])
-    def notify_overdue(self, request):
-        overdue_borrowings = Borrowing.objects.filter(
-            expected_return_date__lt=date.today(), actual_return_date__isnull=True
-        )
-        for borrowing in overdue_borrowings:
-            self.send_telegram_message(
-                f"Термін повернення книги '{borrowing.book.title}' минув. Очікувана дата повернення: {borrowing.expected_return_date}."
-            )
-        return Response(
-            {"message": "Сповіщення для прострочених позик відправлено."},
-            status=status.HTTP_200_OK,
-        )
-
-    def send_telegram_message(self, message):
-        data = {"chat_id": CHAT_ID, "text": message}
-        response = requests.post(TELEGRAM_API_URL, data=data)
-        if response.status_code != 200:
-            raise Exception(f"Не вдалося відправити повідомлення: {response.text}")
