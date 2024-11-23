@@ -1,11 +1,12 @@
 from rest_framework import serializers
-
 from books.serializers import BookSerializer
+from user.serializers import UserSerializer
 from borrowing.models import Borrowing
 
 
 class BorrowingSerializer(serializers.ModelSerializer):
     book = BookSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
 
     class Meta:
         model = Borrowing
@@ -30,9 +31,11 @@ class BorrowingCreateSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        book = validated_data["book"]
+        # Витягуємо книгу
+        book = validated_data.get("book")
+        # Зменшуємо інвентар
         book.inventory -= 1
-        book.save()
+        book.save()  # Зберігаємо зміни в базі даних
         return super().create(validated_data)
 
 
@@ -50,6 +53,7 @@ class BorrowingReturnSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         instance.actual_return_date = validated_data.get("actual_return_date")
+        # Повертаємо книгу до інвентаря
         instance.book.inventory += 1
         instance.book.save()
         return super().update(instance, validated_data)

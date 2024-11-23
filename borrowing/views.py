@@ -2,6 +2,10 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
+from datetime import date
+import os
+import requests
+from dotenv import load_dotenv
 
 from .models import Borrowing
 from .serializers import (
@@ -9,6 +13,11 @@ from .serializers import (
     BorrowingCreateSerializer,
     BorrowingReturnSerializer,
 )
+
+load_dotenv()
+
+TELEGRAM_API_URL = os.environ.get("TELEGRAM_URL")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 
 class IsAuthenticatedOrReadOnly(permissions.BasePermission):
@@ -22,7 +31,7 @@ class IsAuthenticatedOrReadOnly(permissions.BasePermission):
 
 class BorrowingViewSet(viewsets.ModelViewSet):
     queryset = Borrowing.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -34,16 +43,18 @@ class BorrowingViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+
+        if not user.is_authenticated:
+            return queryset.none()
+
         user_id = self.request.query_params.get("user_id")
         is_active = self.request.query_params.get("is_active")
 
-        # Filter by user permissions
         if not user.is_staff:
             queryset = queryset.filter(user=user)
         elif user_id:
             queryset = queryset.filter(user_id=user_id)
 
-        # Filter by active/inactive status
         if is_active is not None:
             if is_active.lower() == "true":
                 queryset = queryset.filter(actual_return_date__isnull=True)
@@ -53,12 +64,41 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        borrowing = serializer.save(user=self.request.user)
+        self.send_telegram_message(
+            f"Ви взяли книгу '{borrowing.book.title}'. Очікувана дата повернення: {borrowing.expected_return_date}."
+        )
 
     @action(detail=True, methods=["post"])
     def return_borrowing(self, request, pk=None):
         borrowing = get_object_or_404(Borrowing, pk=pk)
         serializer = BorrowingReturnSerializer(instance=borrowing, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        borrowing = serializer.save()
+
+        # Відправлення повідомлення про повернення книги
+        self.send_telegram_message(
+            f"Книга '{borrowing.book.title}' була успішно повернута. Дякуємо за вчасне повернення!"
+        )
+
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"])
+    def notify_overdue(self, request):
+        overdue_borrowings = Borrowing.objects.filter(
+            expected_return_date__lt=date.today(), actual_return_date__isnull=True
+        )
+        for borrowing in overdue_borrowings:
+            self.send_telegram_message(
+                f"Термін повернення книги '{borrowing.book.title}' минув. Очікувана дата повернення: {borrowing.expected_return_date}."
+            )
+        return Response(
+            {"message": "Сповіщення для прострочених позик відправлено."},
+            status=status.HTTP_200_OK,
+        )
+
+    def send_telegram_message(self, message):
+        data = {"chat_id": CHAT_ID, "text": message}
+        response = requests.post(TELEGRAM_API_URL, data=data)
+        if response.status_code != 200:
+            raise Exception(f"Не вдалося відправити повідомлення: {response.text}")
