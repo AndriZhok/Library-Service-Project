@@ -9,5 +9,5 @@ router.register(r"", BorrowingViewSet, basename="borrowing")
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("webhook/", BorrowingViewSet.stripe_webhook, name="stripe-webhook"),
+    path("stripe-webhook/", BorrowingViewSet.stripe_webhook, name="stripe-webhook"),
 ]
