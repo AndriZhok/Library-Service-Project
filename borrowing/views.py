@@ -1,6 +1,7 @@
 import os
 import stripe
 import requests
+from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiParameter
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
@@ -35,6 +36,55 @@ class IsAuthenticatedOrReadOnly(permissions.BasePermission):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List Borrowings",
+        description="Retrieve a list of borrowings. Optionally filter by user ID or active status.",
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                description="Filter by user ID",
+                required=False,
+                type=int,
+            ),
+            OpenApiParameter(
+                name="is_active",
+                description="Filter by active status (true/false)",
+                required=False,
+                type=bool,
+            ),
+        ],
+        responses={200: BorrowingSerializer(many=True)},
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a Borrowing",
+        description="Retrieve a specific borrowing record by its ID.",
+        responses={200: BorrowingSerializer},
+    ),
+    create=extend_schema(
+        summary="Create a Borrowing",
+        description="Create a new borrowing record and generate a payment URL.",
+        request=BorrowingCreateSerializer,
+        responses={201: BorrowingSerializer},
+    ),
+    update=extend_schema(
+        summary="Update a Borrowing",
+        description="Update an existing borrowing record.",
+        request=BorrowingSerializer,
+        responses={200: BorrowingSerializer},
+    ),
+    partial_update=extend_schema(
+        summary="Partially Update a Borrowing",
+        description="Partially update fields of a borrowing record.",
+        request=BorrowingSerializer,
+        responses={200: BorrowingSerializer},
+    ),
+    destroy=extend_schema(
+        summary="Delete a Borrowing",
+        description="Delete a borrowing record by its ID.",
+        responses={204: None},
+    ),
+)
 class BorrowingViewSet(viewsets.ModelViewSet):
     queryset = Borrowing.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
@@ -171,6 +221,12 @@ class BorrowingViewSet(viewsets.ModelViewSet):
         response_data["payment_url"] = self.payment_url
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
+    @extend_schema(
+        summary="Return a Borrowing",
+        description="Mark a borrowing as returned and send a Telegram notification.",
+        request=BorrowingReturnSerializer,
+        responses={200: BorrowingReturnSerializer},
+    )
     @action(detail=True, methods=["post"])
     def return_borrowing(self, request, pk=None):
         borrowing = get_object_or_404(Borrowing, pk=pk)
