@@ -5,8 +5,9 @@ from .views import BorrowingViewSet
 app_name = "borrowings"
 
 router = DefaultRouter()
-router.register(r"borrowings", BorrowingViewSet, basename="borrowing")
+router.register(r"", BorrowingViewSet, basename="borrowing")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("webhook/", BorrowingViewSet.stripe_webhook, name="stripe-webhook"),
 ]

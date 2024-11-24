@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from books.serializers import BookSerializer
+from payment.serializers import PaymentSerializer
 from user.serializers import UserSerializer
 from borrowing.models import Borrowing
 
@@ -7,6 +8,7 @@ from borrowing.models import Borrowing
 class BorrowingSerializer(serializers.ModelSerializer):
     book = BookSerializer(read_only=True)
     user = UserSerializer(read_only=True)
+    payment = PaymentSerializer(read_only=True)
 
     class Meta:
         model = Borrowing
@@ -17,13 +19,20 @@ class BorrowingSerializer(serializers.ModelSerializer):
             "borrow_date",
             "expected_return_date",
             "actual_return_date",
+            "payment",
         ]
 
 
 class BorrowingCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrowing
-        fields = ["id", "user", "book", "borrow_date", "expected_return_date"]
+        fields = [
+            "id",
+            "user",
+            "book",
+            "borrow_date",
+            "expected_return_date",
+        ]
 
     def validate(self, data):
         if data["book"].inventory <= 0:
