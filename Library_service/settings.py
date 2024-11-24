@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_extensions",
     "payment",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
 ]
 
 MIDDLEWARE = [
@@ -164,3 +166,10 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY")
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Library API",
+    "DESCRIPTION": "Документація для API бібліотеки",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
